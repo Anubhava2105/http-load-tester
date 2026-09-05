@@ -11,6 +11,7 @@ class ErrorCategory(StrEnum):
     DNS_FAILURE = "dns_failure"
     CONNECT_TIMEOUT = "connect_timeout"
     CONNECTION_REFUSED = "connection_refused"
+    TRANSPORT_FAILURE = "transport_failure"
     TLS_FAILURE = "tls_failure"
     WRITE_TIMEOUT = "write_timeout"
     READ_TIMEOUT = "read_timeout"
@@ -52,6 +53,10 @@ class ConnectTimeout(RawLoadError):
 
 class ConnectionRefused(RawLoadError):
     category = ErrorCategory.CONNECTION_REFUSED
+
+
+class TransportFailure(RawLoadError):
+    category = ErrorCategory.TRANSPORT_FAILURE
 
 
 class TlsFailure(RawLoadError):
