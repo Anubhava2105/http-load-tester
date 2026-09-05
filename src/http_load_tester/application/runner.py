@@ -7,7 +7,6 @@ import sys
 import time
 from typing import TextIO
 
-from ..domain.errors import ConfigurationError
 from ..domain.models import ReportFormat, TestPlan
 from ..load.executor import WorkExecutor
 from ..observability.metrics import MetricsCollector
@@ -41,8 +40,6 @@ def run_plan(
     """Run one plan, render its report, and return a stable exit code."""
     if not isinstance(plan, TestPlan):
         raise TypeError("plan must be a TestPlan")
-    if plan.load_model.value != "closed_loop":
-        raise ConfigurationError("the CLI currently supports closed-loop plans only")
     output = stdout or sys.stdout
     errors = stderr or sys.stderr
     samples = SampleCollector()

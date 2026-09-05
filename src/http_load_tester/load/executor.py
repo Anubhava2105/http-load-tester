@@ -7,11 +7,11 @@ import threading
 
 from ..domain.clock import Clock, MonotonicClock
 from ..domain.errors import ErrorCategory, RawLoadError, TransportFailure
-from ..domain.models import HttpRequest, Outcome, ResultSample, TestPlan
+from ..domain.models import HttpRequest, LoadModel, Outcome, ResultSample, TestPlan
 from ..http.request_encoder import encode_request
 from ..http.session import Http1Session
 from ..pool.connection_pool import ConnectionPool
-from .scheduler import ClosedLoopScheduler, ScheduledAttempt
+from .scheduler import ClosedLoopScheduler, OpenLoopScheduler, ScheduledAttempt
 
 
 SampleSink = Callable[[ResultSample], None]
@@ -27,6 +27,7 @@ class WorkExecutor:
         *,
         clock: Clock | None = None,
         sample_sink: SampleSink | None = None,
+        sleeper: Callable[[float], None] | None = None,
     ) -> None:
         if not isinstance(plan, TestPlan):
             raise TypeError("plan must be a TestPlan")
@@ -35,7 +36,12 @@ class WorkExecutor:
         self._plan = plan
         self._pool = pool
         self._clock = clock or MonotonicClock()
-        self._scheduler = ClosedLoopScheduler(plan, clock=self._clock)
+        scheduler_type = (
+            OpenLoopScheduler
+            if plan.load_model is LoadModel.OPEN_LOOP
+            else ClosedLoopScheduler
+        )
+        self._scheduler = scheduler_type(plan, clock=self._clock, sleeper=sleeper)
         self._sample_sink = sample_sink
         self._samples: list[ResultSample] = []
         self._samples_lock = threading.Lock()
@@ -51,7 +57,7 @@ class WorkExecutor:
             return tuple(self._samples)
 
     @property
-    def scheduler(self) -> ClosedLoopScheduler:
+    def scheduler(self) -> ClosedLoopScheduler | OpenLoopScheduler:
         return self._scheduler
 
     def run(self) -> tuple[ResultSample, ...]:

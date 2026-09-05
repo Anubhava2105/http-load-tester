@@ -60,6 +60,23 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(plan.request_count, 4)
         self.assertEqual(plan.report_format.value, "json")
 
+    def test_load_plan_builds_open_loop_plan(self) -> None:
+        plan = load_plan(
+            [
+                "http://example.test/",
+                "--duration",
+                "2",
+                "--mode",
+                "open_loop",
+                "--rate",
+                "25",
+                "--warmup",
+                "0",
+            ]
+        )
+        self.assertEqual(plan.load_model.value, "open_loop")
+        self.assertEqual(plan.target_rate, 25.0)
+
     def test_count_and_duration_are_required_but_mutually_exclusive(self) -> None:
         with self.assertRaises(ConfigurationError):
             load_plan(["http://example.test/", "--workers", "1"])

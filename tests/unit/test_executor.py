@@ -1,9 +1,10 @@
 import time
 import unittest
 
-from http_load_tester.domain.models import HttpRequest, Origin, TestPlan, TimeoutConfig
+from http_load_tester.domain.models import HttpRequest, LoadModel, Origin, TestPlan, TimeoutConfig
 from http_load_tester.http.session import SessionTiming
 from http_load_tester.load.executor import WorkExecutor
+from http_load_tester.load.scheduler import OpenLoopScheduler
 from http_load_tester.pool.connection_pool import ConnectionPool
 
 
@@ -70,3 +71,28 @@ class ExecutorTests(unittest.TestCase):
         self.assertTrue(all(sample.outcome.value == "success" for sample in samples))
         self.assertLessEqual(pool.live_connections, 2)
         self.assertEqual(sum(session.executions for session in factory.sessions), 4)
+
+    def test_open_loop_plan_uses_rate_scheduler(self) -> None:
+        origin = Origin("http", "example.test", 80)
+        plan = TestPlan(
+            origin=origin,
+            request=HttpRequest("GET", "/"),
+            request_count=4,
+            workers=2,
+            max_connections=2,
+            load_model=LoadModel.OPEN_LOOP,
+            target_rate=1_000_000,
+        )
+        factory = FakeFactory()
+        pool = ConnectionPool(
+            origin,
+            2,
+            TimeoutConfig(),
+            session_factory=factory,
+        )
+        executor = WorkExecutor(plan, pool)
+
+        self.assertIsInstance(executor.scheduler, OpenLoopScheduler)
+        samples = executor.run()
+
+        self.assertEqual(len(samples), 4)

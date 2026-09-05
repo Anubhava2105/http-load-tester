@@ -7,13 +7,13 @@ import math
 from collections.abc import Sequence
 
 from ..domain.errors import ConfigurationError
+from ..domain.models import HttpRequest, LoadModel, ReportFormat, TestPlan, TimeoutConfig
+from ..http.url import parse_target
 
 
 class _ArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         raise ConfigurationError(message)
-from ..domain.models import HttpRequest, LoadModel, ReportFormat, TestPlan, TimeoutConfig
-from ..http.url import parse_target
 
 
 def _positive_int(value: str) -> int:
@@ -59,7 +59,7 @@ def _header(value: str) -> tuple[str, str]:
 def create_parser() -> argparse.ArgumentParser:
     parser = _ArgumentParser(
         prog="http-load-tester",
-        description="Run a bounded raw HTTP/1.1 closed-loop load test.",
+        description="Run a bounded raw HTTP/1.1 closed- or open-loop load test.",
     )
     parser.add_argument("url", help="HTTP or HTTPS target URL")
     parser.add_argument("-X", "--method", default="GET", help="HTTP method")
@@ -87,6 +87,14 @@ def create_parser() -> argparse.ArgumentParser:
         help="test duration in seconds",
     )
     parser.add_argument("--warmup", type=_non_negative_float, default=0.0)
+    parser.add_argument(
+        "--load-model",
+        "--mode",
+        choices=tuple(model.value for model in LoadModel),
+        default=LoadModel.CLOSED_LOOP.value,
+        dest="load_model",
+    )
+    parser.add_argument("--rate", dest="target_rate", type=_positive_float)
     parser.add_argument("--workers", type=_positive_int, default=1)
     parser.add_argument("--max-connections", type=_positive_int, default=1)
     parser.add_argument("--request-timeout", type=_positive_float, default=30.0)
@@ -128,13 +136,14 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
     )
     return TestPlan(
         origin=parsed.origin,
+        target_rate=args.target_rate,
         request=request,
         request_count=args.request_count,
         duration_seconds=args.duration_seconds,
         warmup_seconds=args.warmup,
         workers=args.workers,
         max_connections=args.max_connections,
-        load_model=LoadModel.CLOSED_LOOP,
+        load_model=LoadModel(args.load_model),
         timeouts=timeouts,
         report_format=ReportFormat(args.report_format),
     )
