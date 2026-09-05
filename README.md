@@ -1,6 +1,6 @@
-# rawload
+# http-load-tester
 
-rawload is a from-first-principles HTTP/1.1 load tester and client-side
+http-load-tester is a from-first-principles HTTP/1.1 load tester and client-side
 fault-injection tool.
 
 The project is being built incrementally to make the networking behavior

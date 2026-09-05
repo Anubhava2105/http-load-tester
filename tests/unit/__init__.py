@@ -1,1 +1,1 @@
-"""Unit tests for rawload."""
+"""Unit tests for http-load-tester."""

@@ -1,1 +1,1 @@
-"""Test package for rawload."""
+"""Test package for http-load-tester."""

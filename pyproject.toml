@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rawload"
+name = "http-load-tester"
 version = "0.1.0"
 description = "A raw HTTP/1.1 load tester and client-side chaos client."
 readme = "README.md"

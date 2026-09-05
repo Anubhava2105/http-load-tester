@@ -1,1 +1,1 @@
-"""System tests for rawload."""
+"""System tests for http-load-tester."""

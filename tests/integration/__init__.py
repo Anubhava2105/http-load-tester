@@ -1,1 +1,1 @@
-"""Integration tests for rawload."""
+"""Integration tests for http-load-tester."""
