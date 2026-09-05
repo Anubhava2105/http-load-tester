@@ -78,6 +78,29 @@ class MetricsSnapshot:
     def error_rate(self) -> float:
         return self.failure_count / self.total_attempts if self.total_attempts else 0.0
 
+    @property
+    def response_count(self) -> int:
+        return self.success_count + self.http_error_count
+
+    @property
+    def transport_error_count(self) -> int:
+        return self.outcome_counts.get(Outcome.TRANSPORT_ERROR, 0)
+
+    @property
+    def protocol_error_count(self) -> int:
+        return self.outcome_counts.get(Outcome.PROTOCOL_ERROR, 0)
+
+    @property
+    def timeout_count(self) -> int:
+        return self.outcome_counts.get(Outcome.TIMEOUT, 0)
+
+    @property
+    def cancelled_count(self) -> int:
+        return self.outcome_counts.get(Outcome.CANCELLED, 0)
+
+    @property
+    def pool_acquire_timeout_count(self) -> int:
+        return self.error_counts.get(ErrorCategory.POOL_ACQUIRE_TIMEOUT, 0)
 
 class MetricsCollector:
     """Aggregate samples in one reporting/owner thread."""
