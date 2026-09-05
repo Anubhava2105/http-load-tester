@@ -12,9 +12,16 @@ if TYPE_CHECKING:
 class ConnectionLease:
     """Exclusive handle for one session borrowed from a connection pool."""
 
-    def __init__(self, pool: ConnectionPool, connection: Http1Session) -> None:
+    def __init__(
+        self,
+        pool: ConnectionPool,
+        connection: Http1Session,
+        *,
+        reused: bool = False,
+    ) -> None:
         self._pool = pool
         self._connection = connection
+        self._reused = reused
         self._released = False
 
     @property
@@ -24,6 +31,10 @@ class ConnectionLease:
     @property
     def released(self) -> bool:
         return self._released
+    @property
+    def reused(self) -> bool:
+        return self._reused
+
 
     def release(self, reusable: bool) -> None:
         if not isinstance(reusable, bool):

@@ -89,7 +89,7 @@ class ConnectionPool:
                     session = self._idle.pop()
                     if session.reusable:
                         self._leased.add(session)
-                        return ConnectionLease(self, session)
+                        return ConnectionLease(self, session, reused=True)
                     session.close()
                     self._live -= 1
 
@@ -127,7 +127,7 @@ class ConnectionPool:
                 session.close()
                 raise ConnectionClosedEarly("session factory returned a non-reusable session")
             self._leased.add(session)
-            return ConnectionLease(self, session)
+            return ConnectionLease(self, session, reused=False)
 
     def close_all(self) -> None:
         with self._condition:
