@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import sys
+import threading
 import time
 from typing import TextIO
 
 from ..domain.errors import ConfigurationError
-from ..domain.models import ReportFormat, TestPlan
+from ..domain.models import ReportFormat, ResultSample, TestPlan
 from ..load.executor import WorkExecutor
 from ..observability.metrics import MetricsCollector
 from ..observability.renderers import render_json, render_terminal
@@ -19,6 +20,30 @@ from ..pool.connection_pool import ConnectionPool
 
 PoolFactory = Callable[[TestPlan], ConnectionPool]
 ExecutorFactory = Callable[..., WorkExecutor]
+
+PROGRESS_INTERVAL_SECONDS = 2.0
+
+
+class ProgressTracker:
+    """Count completed attempts and format live progress lines."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._completed = 0
+
+    def record(self, sample: ResultSample) -> None:
+        with self._lock:
+            self._completed += 1
+
+    @property
+    def completed(self) -> int:
+        with self._lock:
+            return self._completed
+
+    def line(self, elapsed_seconds: float, total: int | None) -> str:
+        if total is not None:
+            return f"[{elapsed_seconds:.0f}s] {self.completed}/{total} attempts"
+        return f"[{elapsed_seconds:.0f}s] {self.completed} attempts"
 
 
 def create_pool(plan: TestPlan) -> ConnectionPool:
@@ -87,10 +112,16 @@ def run_plan(
 
     samples_collector = SampleCollector()
     pool = pool_factory(plan)
+    progress = ProgressTracker()
+
+    def _counting_sink(sample: ResultSample) -> None:
+        progress.record(sample)
+        samples_collector.submit(sample)
+
     executor = executor_factory(
         plan,
         pool,
-        sample_sink=samples_collector.submit,
+        sample_sink=_counting_sink,
     )
 
     runtime_deadline_ns = time.perf_counter_ns() + int(
@@ -98,6 +129,10 @@ def run_plan(
     )
 
     started_ns = time.perf_counter_ns()
+    progress_stop = threading.Event()
+    progress_thread = _maybe_start_progress(
+        progress, progress_stop, started_ns, plan, errors
+    )
     interrupted = False
     try:
         executor.run(runtime_deadline_ns=runtime_deadline_ns)
@@ -108,6 +143,9 @@ def run_plan(
         print(f"load test failed: {exc}", file=errors)
         return int(ExitCode.EXECUTION_FAILURE)
     finally:
+        progress_stop.set()
+        if progress_thread is not None:
+            progress_thread.join(timeout=5)
         samples_collector.close()
 
     collected = samples_collector.collect()
@@ -115,7 +153,38 @@ def run_plan(
     rendered = _render_report(plan, report)
     output.write(rendered)
     output.flush()
+    if plan.output_path is not None:
+        try:
+            with open(plan.output_path, "w", encoding="utf-8") as handle:
+                handle.write(rendered)
+        except OSError as exc:
+            print(f"failed to write report: {exc}", file=errors)
+            return int(ExitCode.EXECUTION_FAILURE)
 
     if interrupted:
         return int(ExitCode.INTERRUPTED)
     return int(exit_code_for(report))
+
+
+def _maybe_start_progress(
+    progress: ProgressTracker,
+    stop: threading.Event,
+    started_ns: int,
+    plan: TestPlan,
+    errors: TextIO,
+) -> threading.Thread | None:
+    """Print live progress to interactive terminals, nothing otherwise."""
+    isatty = getattr(errors, "isatty", None)
+    if not callable(isatty) or not isatty():
+        return None
+    total = plan.request_count
+
+    def _loop() -> None:
+        while not stop.wait(PROGRESS_INTERVAL_SECONDS):
+            elapsed = (time.perf_counter_ns() - started_ns) / 1_000_000_000
+            errors.write(progress.line(elapsed, total) + "\n")
+            errors.flush()
+
+    thread = threading.Thread(target=_loop, name="http-load-progress", daemon=True)
+    thread.start()
+    return thread

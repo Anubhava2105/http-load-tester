@@ -329,6 +329,7 @@ class TestPlan:
     random_seed: int = 0
     fault_policy: FaultPolicy | None = None
     metrics: MetricsConfig = field(default_factory=MetricsConfig)
+    output_path: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.origin, Origin):
@@ -389,6 +390,8 @@ class TestPlan:
             raise ConfigurationError("random_seed must be an integer")
         if not isinstance(self.metrics, MetricsConfig):
             raise ConfigurationError("metrics must be a MetricsConfig")
+        if self.output_path is not None:
+            _require_text(self.output_path, "output_path")
         object.__setattr__(self, "warmup_seconds", warmup)
         object.__setattr__(self, "workers", workers)
         object.__setattr__(self, "max_connections", max_connections)

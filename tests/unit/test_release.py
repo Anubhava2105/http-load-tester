@@ -91,6 +91,43 @@ class EntryPointTests(unittest.TestCase):
             server.terminate()
             server.wait(timeout=10)
 
+    def test_module_subprocess_runs_a_load_end_to_end(self) -> None:
+        env = dict(os.environ)
+        env["PYTHONPATH"] = "src" + os.pathsep + str(ROOT)
+        server = subprocess.Popen(
+            [sys.executable, "-m", "test_server", "--scenario", "fixed"],
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            url = server.stdout.readline().rsplit(" ", 1)[-1].strip()
+            self.assertTrue(url.startswith("http://127.0.0.1:"))
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "http_load_tester",
+                    url,
+                    "--count",
+                    "4",
+                    "--workers",
+                    "1",
+                ],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        finally:
+            server.terminate()
+            server.wait(timeout=10)
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("Attempts:", completed.stdout)
+        self.assertEqual(completed.stderr, "")
+
 
 class CleanInstallTests(unittest.TestCase):
     def test_install_exposes_the_console_script(self) -> None:

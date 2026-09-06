@@ -89,6 +89,7 @@ class Report:
                 "fault_probability": plan.fault_policy.probability if plan.fault_policy else None,
                 "metrics_mode": plan.metrics.mode.value,
                 "metrics_reservoir_size": plan.metrics.reservoir_size,
+                "output_path": plan.output_path,
             },
             metrics=metrics,
         )

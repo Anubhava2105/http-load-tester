@@ -446,6 +446,19 @@ class RunnerIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["results"]["status_codes"]["500"], 1)
         self.assertEqual(errors.getvalue(), "")
 
+    def test_cli_main_runs_fixed_count_end_to_end(self) -> None:
+        from unittest.mock import patch
+
+        from http_load_tester.application.cli import main
+
+        with ScenarioServer(ScenarioConfig(body=b"ok")) as server:
+            output, errors = io.StringIO(), io.StringIO()
+            with patch("sys.stdout", output), patch("sys.stderr", errors):
+                code = main([server.url, "--count", "2", "--workers", "1"])
+        self.assertEqual(code, 0)
+        self.assertIn("Attempts:", output.getvalue())
+        self.assertEqual(errors.getvalue(), "")
+
 
 if __name__ == "__main__":
     unittest.main()

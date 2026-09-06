@@ -39,6 +39,7 @@ Requires Python 3.11 or newer. Runtime dependencies are empty.
 Verify the install:
 
     http-load-tester --help
+    http-load-tester --version
     python -m http_load_tester --help
 
 ## Quick start: HTTP
@@ -158,6 +159,24 @@ An HTTP 500 is a valid HTTP response, reported under `http_errors` with
 its status code, never as a transport failure. Timeouts, resets,
 early closes, and framing errors land in `error_categories` with the
 stable taxonomy from `domain/errors.py`.
+
+Save any report to a file as well as stdout with `--output`:
+
+    http-load-tester http://127.0.0.1:58873/ --count 100 --format json --output /tmp/run.json
+
+Long runs print live progress to stderr, one line every two seconds with
+elapsed time and completed attempts, but only on interactive terminals.
+Piped output stays clean for machine reading.
+
+Exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Completed with no errors. |
+| 1 | Completed, but some attempts failed. |
+| 2 | The run itself failed, or the report file could not be written. |
+| 3 | Invalid configuration or CLI usage. |
+| 130 | Interrupted; a partial report is rendered first. |
 
 ## Safety limits
 

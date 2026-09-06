@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from ..domain.errors import ConfigurationError
 from ..domain.models import FaultMode, FaultPolicy, HttpRequest, LoadModel, MetricsConfig, MetricsMode, ReportFormat, TestPlan, TimeoutConfig
 from ..http.url import parse_target
+from .. import __version__
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -62,6 +63,9 @@ def create_parser() -> argparse.ArgumentParser:
         description="Run a bounded raw HTTP/1.1 closed- or open-loop load test.",
     )
     parser.add_argument("url", help="HTTP or HTTPS target URL")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     parser.add_argument("-X", "--method", default="GET", help="HTTP method")
     parser.add_argument(
         "--header",
@@ -110,6 +114,12 @@ def create_parser() -> argparse.ArgumentParser:
         choices=(ReportFormat.TERMINAL.value, ReportFormat.JSON.value),
         default=ReportFormat.TERMINAL.value,
         dest="report_format",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        dest="output_path",
+        help="write the rendered report to this file as well as stdout",
     )
     metrics_group = parser.add_argument_group("metrics collection")
     metrics_group.add_argument(
@@ -212,8 +222,7 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
         mode=MetricsMode(args.metrics_mode),
         reservoir_size=args.metrics_reservoir_size,
     )
-    return TestPlan(
-        origin=parsed.origin,
+    return TestPlan(        origin=parsed.origin,
         target_rate=args.target_rate,
         request=request,
         request_count=args.request_count,
@@ -227,6 +236,7 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
         report_format=ReportFormat(args.report_format),
         fault_policy=fault_policy,
         metrics=metrics,
+        output_path=args.output_path,
     )
 
 
