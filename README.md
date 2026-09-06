@@ -53,7 +53,7 @@ Run four requests against that URL in a second terminal:
 
     http-load-tester http://127.0.0.1:58873/ --count 4 --workers 1
 
-A real run looks like this (addresses and timings vary per run):
+A real run looks like this. Addresses and timings vary per run:
 
 ```text
 Target:       http://127.0.0.1:58873/
@@ -106,8 +106,8 @@ its previous attempt completes:
 
     http-load-tester http://127.0.0.1:58873/ --count 100 --workers 4 --max-connections 4
 
-Send a different method, headers, or body when the target needs it
-(`-X` also spells `--method`):
+Send a different method, headers, or body when the target needs it.
+`-X` also spells `--method`:
 
     http-load-tester http://127.0.0.1:58873/items --count 10 -X POST \
         --header "Content-Type: text/plain" --body "payload"
@@ -120,6 +120,14 @@ rate, without waiting for earlier attempts:
 `--load-model` also spells `--mode`. Fixed-count runs stop after the count. Fixed-duration runs stop after
 the clock. Warmup seconds (`--warmup`) delay the start without counting
 toward results.
+
+Workers are threads. Connections cap live sockets per origin. More
+workers than connections means attempts queue in pool wait instead of
+hitting the target, which is fine for modeling contention and bad for
+measuring the server. Size both to the question you are asking.
+
+Ctrl-C stops scheduling at once. Active attempts drain or cancel, the
+pool closes, a partial report renders, and the process exits 130.
 
 ## Fault injection
 
@@ -294,7 +302,7 @@ throughout. Command shape:
 | 1, 1 exact | 1,000 | 2,387 rps | 0.290 ms | 0.417 ms | 0.521 ms | 0.999 |
 | 2, 2 exact | 1,000 | 2,587 rps | 0.637 ms | 1.017 ms | 1.128 ms | 0.998 |
 | 4, 4 exact | 1,000 | 2,579 rps | 1.383 ms | 2.360 ms | 2.819 ms | 0.996 |
-| 4, 4 bounded-64 | 1,000 | 2,611 rps | 1.352 ms | 2.086 ms | 2.439 ms | — |
+| 4, 4 bounded-64 | 1,000 | 2,611 rps | 1.352 ms | 2.086 ms | 2.439 ms | 0.996 |
 
 Throughput plateaus past 2 workers while latency climbs, which points at
 the single-threaded scenario server as the ceiling, not the client.
