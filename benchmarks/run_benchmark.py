@@ -322,6 +322,7 @@ def run_benchmark(args: argparse.Namespace) -> dict:
             "connection_reuse_ratio": snapshot.connection_reuse_ratio,
             "bytes_sent": snapshot.bytes_sent,
             "bytes_received": snapshot.bytes_received,
+            "approximate_percentiles": snapshot.approximate_percentiles,
         },
         "memory": {
             "peak_rss_bytes": _peak_rss_bytes(),

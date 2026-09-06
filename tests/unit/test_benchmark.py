@@ -97,6 +97,8 @@ class BenchmarkSmokeTests(unittest.TestCase):
             self.assertIn("p95", results[stream])
             self.assertIn("p99", results[stream])
         self.assertIn("connection_reuse_ratio", results)
+        self.assertIn("approximate_percentiles", results)
+        self.assertFalse(results["approximate_percentiles"])
         self.assertIn("memory", result)
         json.dumps(result)
 

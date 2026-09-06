@@ -280,6 +280,37 @@ Methodology, warmup policy, and interpretation rules live in
 All benchmark numbers are machine- and workload-specific. Never compare
 across setups unless the environment and workload are controlled.
 
+## Measured evidence
+
+Measured 2026-09-07 on Windows AMD64, Python 3.13.14, against the local
+fixed scenario with 1 second of warmup discarded and zero errors
+throughout. Command shape:
+
+    PYTHONPATH=src python benchmarks/run_benchmark.py --count 1000 --warmup 1 \
+        --workers 2 --max-connections 2
+
+| Workers, pool | Attempts | Throughput | p50 | p95 | p99 | Reuse |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1, 1 exact | 1,000 | 2,387 rps | 0.290 ms | 0.417 ms | 0.521 ms | 0.999 |
+| 2, 2 exact | 1,000 | 2,587 rps | 0.637 ms | 1.017 ms | 1.128 ms | 0.998 |
+| 4, 4 exact | 1,000 | 2,579 rps | 1.383 ms | 2.360 ms | 2.819 ms | 0.996 |
+| 4, 4 bounded-64 | 1,000 | 2,611 rps | 1.352 ms | 2.086 ms | 2.439 ms | — |
+
+Throughput plateaus past 2 workers while latency climbs, which points at
+the single-threaded scenario server as the ceiling, not the client.
+Bounded percentiles track exact within noise.
+
+Memory at 20,000 attempts (workers 4, pool 4): exact peaks near 9.9 MB
+traced, bounded-64 the same. The bounded collector itself is flat, as
+its unit tests prove, but the executor retains every sample, so whole
+process memory still scales with attempt count. Streaming samples
+without retention is the follow-up for true long-run flatness.
+
+HTTPS is covered by a self-signed loopback fixture in the integration
+suite: verification-enabled runs succeed with trust configured and fail
+without it, and the insecure path succeeds. The fixture needs the
+`openssl` binary and skips without it.
+
 ## Validation
 
 From a clean checkout, with `PYTHONPATH=src:.` on Windows PowerShell:
