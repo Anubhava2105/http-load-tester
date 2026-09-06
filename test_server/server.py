@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import socket
 import socketserver
+import struct
 import threading
 import time
 
 from .scenarios import Scenario, ScenarioConfig, chunked_response, response_headers
+
+
+# Abrupt-reset shape: declare more than we send, flush a prefix, then RST.
+# The oversize keeps a valid client blocked in body read so the reset
+# lands mid-response instead of looking like a clean EOF after full body.
+_RESET_DECLARED_OVERHEAD = 64
+_RESET_FLUSH_DELAY = 0.02
 
 
 class ScenarioServer:
@@ -76,12 +85,23 @@ class _ThreadingServer(socketserver.ThreadingTCPServer):
 class _ScenarioHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         while True:
-            if self._read_request() is None:
+            try:
+                if self._read_request() is None:
+                    return
+            except (OSError, ValueError):
+                # Client went away mid-request: timeout, cancel, or RST
+                # from delay and reset tests. Test server only, so stop
+                # this connection without logging a traceback.
                 return
             with self.server.request_count_lock:
                 self.server.request_count += 1
                 request_number = self.server.request_count
-            if not self._write_response(request_number):
+            try:
+                if not self._write_response(request_number):
+                    return
+            except OSError:
+                # Client timed out or reset while we were sending.
+                # Same policy as above: drop this connection quietly.
                 return
 
     def _read_request(self) -> bytes | None:
@@ -110,6 +130,22 @@ class _ScenarioHandler(socketserver.BaseRequestHandler):
     def _write_response(self, request_number: int) -> bool:
         config = self.server.config
         scenario = config.scenario
+        if scenario is Scenario.ABRUPT_RESET:
+            prefix = config.body[: len(config.body) // 2]
+            try:
+                self.request.sendall(
+                    response_headers(
+                        200, len(config.body) + _RESET_DECLARED_OVERHEAD, close=False
+                    )
+                    + prefix
+                )
+                # Let the partial body reach the client before the RST
+                # so the fault reads as mid-response, not clean EOF.
+                time.sleep(_RESET_FLUSH_DELAY)
+            except OSError:
+                pass
+            _send_tcp_reset(self.request)
+            return False
         if scenario is Scenario.DELAYED_HEADERS:
             time.sleep(config.delay_seconds)
         if scenario is Scenario.INTERMITTENT_500 and request_number % 2 == 0:
@@ -137,3 +173,19 @@ class _ScenarioHandler(socketserver.BaseRequestHandler):
         else:
             self.request.sendall(response_headers(200, len(body), close=close) + body)
         return not close
+
+
+def _send_tcp_reset(connection: socket.socket) -> None:
+    """Abort the connection with a TCP RST where the OS permits it."""
+    try:
+        connection.setsockopt(
+            socket.SOL_SOCKET,
+            socket.SO_LINGER,
+            struct.pack("ii", 1, 0),
+        )
+    except OSError:
+        pass
+    try:
+        connection.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass

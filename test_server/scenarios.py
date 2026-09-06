@@ -15,6 +15,7 @@ class Scenario(StrEnum):
     TRUNCATED = "truncated"
     LARGE_RESPONSE = "large_response"
     INTERMITTENT_500 = "intermittent_500"
+    ABRUPT_RESET = "abrupt_reset"
 
 
 @dataclass(frozen=True, slots=True)
