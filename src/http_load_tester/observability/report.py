@@ -87,6 +87,8 @@ class Report:
                 "random_seed": plan.random_seed,
                 "fault_mode": plan.fault_policy.mode.value if plan.fault_policy else None,
                 "fault_probability": plan.fault_policy.probability if plan.fault_policy else None,
+                "metrics_mode": plan.metrics.mode.value,
+                "metrics_reservoir_size": plan.metrics.reservoir_size,
             },
             metrics=metrics,
         )
@@ -115,6 +117,9 @@ class Report:
                 "timeout_count": snapshot.timeout_count,
                 "cancelled_count": snapshot.cancelled_count,
                 "pool_acquire_timeout_count": snapshot.pool_acquire_timeout_count,
+                "metrics_mode": snapshot.metrics_mode,
+                "approximate_percentiles": snapshot.approximate_percentiles,
+                "metrics_reservoir_size": snapshot.reservoir_size,
                 "latency_percentiles_ns": {
                     "request": _latency_mapping(snapshot.request_latency_percentiles_ns),
                     "end_to_end": _latency_mapping(

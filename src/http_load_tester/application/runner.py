@@ -49,7 +49,10 @@ def validate_plan_limits(plan: TestPlan) -> None:
 
 
 def _build_report(plan: TestPlan, samples: tuple, started_ns: int) -> Report:
-    metrics = MetricsCollector()
+    metrics = MetricsCollector(
+        mode=plan.metrics.mode,
+        reservoir_size=plan.metrics.reservoir_size,
+    )
     metrics.extend(samples)
     duration_ns = max(0, time.perf_counter_ns() - started_ns)
     return Report.from_plan(plan, metrics.snapshot(run_duration_ns=duration_ns))

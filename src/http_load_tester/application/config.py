@@ -7,7 +7,7 @@ import math
 from collections.abc import Sequence
 
 from ..domain.errors import ConfigurationError
-from ..domain.models import FaultMode, FaultPolicy, HttpRequest, LoadModel, ReportFormat, TestPlan, TimeoutConfig
+from ..domain.models import FaultMode, FaultPolicy, HttpRequest, LoadModel, MetricsConfig, MetricsMode, ReportFormat, TestPlan, TimeoutConfig
 from ..http.url import parse_target
 
 
@@ -111,6 +111,22 @@ def create_parser() -> argparse.ArgumentParser:
         default=ReportFormat.TERMINAL.value,
         dest="report_format",
     )
+    metrics_group = parser.add_argument_group("metrics collection")
+    metrics_group.add_argument(
+        "--metrics-mode",
+        choices=tuple(mode.value for mode in MetricsMode),
+        default=MetricsMode.EXACT.value,
+        dest="metrics_mode",
+        help="latency percentile mode: exact keeps every sample, "
+        "bounded keeps a fixed recent window (default: exact)",
+    )
+    metrics_group.add_argument(
+        "--metrics-reservoir-size",
+        type=_positive_int,
+        default=1024,
+        dest="metrics_reservoir_size",
+        help="latency values kept per stream in bounded mode (1-1000000)",
+    )
     parser.add_argument(
         "--max-runtime",
         type=_positive_float,
@@ -192,6 +208,10 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
     if args.max_runtime is not None:
         limits_kwargs["max_total_runtime_seconds"] = args.max_runtime
     limits = SafetyLimits(**limits_kwargs)
+    metrics = MetricsConfig(
+        mode=MetricsMode(args.metrics_mode),
+        reservoir_size=args.metrics_reservoir_size,
+    )
     return TestPlan(
         origin=parsed.origin,
         target_rate=args.target_rate,
@@ -206,6 +226,7 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
         limits=limits,
         report_format=ReportFormat(args.report_format),
         fault_policy=fault_policy,
+        metrics=metrics,
     )
 
 

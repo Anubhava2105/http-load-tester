@@ -27,6 +27,25 @@ class ReportFormat(StrEnum):
     JSON = "json"
 
 
+class MetricsMode(StrEnum):
+    EXACT = "exact"
+    BOUNDED = "bounded"
+
+
+@dataclass(frozen=True, slots=True)
+class MetricsConfig:
+    mode: MetricsMode = MetricsMode.EXACT
+    reservoir_size: int = 1024
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mode, MetricsMode):
+            raise ConfigurationError("metrics mode must be a MetricsMode")
+        reservoir = _require_positive_int(self.reservoir_size, "reservoir_size")
+        if reservoir > 1_000_000:
+            raise ConfigurationError("reservoir_size must not exceed 1_000_000")
+        object.__setattr__(self, "reservoir_size", reservoir)
+
+
 class Outcome(StrEnum):
     SUCCESS = "success"
     HTTP_ERROR = "http_error"
@@ -309,6 +328,7 @@ class TestPlan:
     report_format: ReportFormat = ReportFormat.TERMINAL
     random_seed: int = 0
     fault_policy: FaultPolicy | None = None
+    metrics: MetricsConfig = field(default_factory=MetricsConfig)
 
     def __post_init__(self) -> None:
         if not isinstance(self.origin, Origin):
@@ -367,6 +387,8 @@ class TestPlan:
             raise ConfigurationError("report_format must be a ReportFormat")
         if not isinstance(self.random_seed, int) or isinstance(self.random_seed, bool):
             raise ConfigurationError("random_seed must be an integer")
+        if not isinstance(self.metrics, MetricsConfig):
+            raise ConfigurationError("metrics must be a MetricsConfig")
         object.__setattr__(self, "warmup_seconds", warmup)
         object.__setattr__(self, "workers", workers)
         object.__setattr__(self, "max_connections", max_connections)

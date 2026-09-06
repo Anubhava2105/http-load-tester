@@ -67,6 +67,13 @@ class TerminalRenderer:
             lines.append(f"Fault mode:   {configuration['fault_mode']}")
             if configuration.get("fault_probability") is not None:
                 lines.append(f"Fault prob:   {configuration['fault_probability']}")
+        if snapshot.approximate_percentiles:
+            lines.append(
+                f"Metrics:      approximate "
+                f"({snapshot.metrics_mode}, reservoir {snapshot.reservoir_size})"
+            )
+        else:
+            lines.append(f"Metrics:      {snapshot.metrics_mode}")
         lines.extend(
             [
                 "",
