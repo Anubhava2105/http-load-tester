@@ -162,3 +162,38 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(snapshot.bytes_received, 60)
         self.assertAlmostEqual(snapshot.connection_reuse_ratio, 0.5)
         self.assertEqual(snapshot.error_counts, {ErrorCategory.READ_TIMEOUT: 1})
+
+
+    def test_snapshot_counts_fault_applied_and_mode(self) -> None:
+        collector = MetricsCollector()
+        base = make_sample(
+            "request-1",
+            scheduled_ns=0,
+            completion_ns=500,
+            write_start_ns=100,
+            write_end_ns=200,
+            first_byte_ns=220,
+            pool_acquire_end_ns=50,
+            outcome=Outcome.SUCCESS,
+            status_code=200,
+        )
+        from dataclasses import replace
+        faulted = replace(
+            base,
+            fault_applied=True,
+            fault_mode="connection_churn",
+            request_id="request-2",
+            scheduled_ns=1,
+            worker_start_ns=2,
+            pool_acquire_start_ns=3,
+            pool_acquire_end_ns=4,
+            write_start_ns=5,
+            write_end_ns=6,
+            first_byte_ns=7,
+            completion_ns=10,
+        )
+        collector.add(base)
+        collector.add(faulted)
+        snapshot = collector.snapshot()
+        self.assertEqual(snapshot.fault_applied_count, 1)
+        self.assertEqual(snapshot.fault_mode_counts.get("connection_churn"), 1)

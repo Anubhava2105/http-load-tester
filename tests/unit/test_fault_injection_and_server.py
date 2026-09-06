@@ -2,7 +2,8 @@ import socket
 import unittest
 
 from http_load_tester.domain.models import HttpRequest
-from http_load_tester.load.fault_injection import FaultInjector, FaultMode, FaultPolicy
+from http_load_tester.domain.models import FaultMode, FaultPolicy
+from http_load_tester.load.fault_injection import FaultInjector
 from test_server import Scenario, ScenarioConfig, ScenarioServer
 
 

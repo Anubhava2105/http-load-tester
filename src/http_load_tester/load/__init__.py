@@ -1,5 +1,5 @@
 """Workload scheduling, execution, and fault injection."""
 
-from .fault_injection import FaultDecision, FaultInjector, FaultMode, FaultPolicy
+from .fault_injection import FaultInjector
 
-__all__ = ["FaultDecision", "FaultInjector", "FaultMode", "FaultPolicy"]
+__all__ = ["FaultInjector"]

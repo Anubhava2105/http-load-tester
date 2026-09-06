@@ -7,10 +7,11 @@ import threading
 
 from ..domain.clock import Clock, MonotonicClock
 from ..domain.errors import ErrorCategory, RawLoadError, TransportFailure
-from ..domain.models import HttpRequest, LoadModel, Outcome, ResultSample, TestPlan
+from ..domain.models import FaultDecision, HttpRequest, LoadModel, Outcome, ResultSample, TestPlan
 from ..http.request_encoder import encode_request
 from ..http.session import Http1Session
 from ..pool.connection_pool import ConnectionPool
+from .fault_injection import FaultInjector
 from .scheduler import ClosedLoopScheduler, OpenLoopScheduler, ScheduledAttempt
 
 
@@ -49,6 +50,7 @@ class WorkExecutor:
         self._run_lock = threading.Lock()
         self._running = False
         self._cancelled = threading.Event()
+        self._injector = FaultInjector(plan.fault_policy)
         self._encoded_request_bytes = len(encode_request(plan.request, plan.origin))
 
     @property
@@ -109,6 +111,9 @@ class WorkExecutor:
 
     def _run_attempt(self, attempt: ScheduledAttempt) -> ResultSample:
         worker_start_ns = self._clock.now_ns()
+        sequence = int(attempt.request_id.split("-")[-1]) if "-" in attempt.request_id else 1
+        decision: FaultDecision = self._injector.apply(self._plan.request, sequence)
+        effective_request = decision.request
         pool_acquire_start_ns = self._clock.now_ns()
         pool_acquire_end_ns: int | None = None
         lease = None
@@ -118,6 +123,10 @@ class WorkExecutor:
         request_deadline_ns = worker_start_ns + int(
             self._plan.timeouts.request_seconds * 1_000_000_000
         )
+        if decision.read_timeout_seconds is not None:
+            request_deadline_ns = worker_start_ns + int(
+                decision.read_timeout_seconds * 1_000_000_000
+            )
         acquire_deadline_ns = pool_acquire_start_ns + int(
             self._plan.timeouts.pool_acquire_seconds * 1_000_000_000
         )
@@ -126,8 +135,16 @@ class WorkExecutor:
             lease = self._pool.acquire(acquire_deadline_ns)
             pool_acquire_end_ns = self._clock.now_ns()
             session: Http1Session = lease.connection
-            response = session.execute(self._plan.request, request_deadline_ns)
+            if decision.delay_seconds > 0:
+                import time as _time
+                _time.sleep(decision.delay_seconds)
+            if decision.abort_after_headers:
+                session.close()
+                raise TransportFailure("fault: abort after headers")
+            response = session.execute(effective_request, request_deadline_ns)
             timing = session.last_timing
+            if decision.abort_during_response:
+                session.close()
         except RawLoadError as exc:
             error = exc
             if lease is not None:
@@ -143,6 +160,8 @@ class WorkExecutor:
                     if response is not None
                     else lease.connection.reusable
                 )
+                if decision.force_connection_close:
+                    reusable = False
                 lease.release(reusable)
 
         completion_ns = self._clock.now_ns()
@@ -195,4 +214,6 @@ class WorkExecutor:
             bytes_sent=bytes_sent,
             bytes_received=bytes_received,
             connection_reused=lease.reused if lease is not None else False,
+            fault_applied=decision.applied,
+            fault_mode=decision.fault_mode,
         )

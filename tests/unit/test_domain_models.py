@@ -2,6 +2,8 @@ import unittest
 
 from http_load_tester.domain.errors import ConfigurationError, ErrorCategory, ReadTimeout
 from http_load_tester.domain.models import (
+    FaultMode,
+    FaultPolicy,
     HttpRequest,
     HttpResponseSummary,
     LoadModel,
@@ -125,5 +127,45 @@ class DomainModelTests(unittest.TestCase):
                 outcome=Outcome.TRANSPORT_ERROR,
                 error_category=ErrorCategory.WRITE_TIMEOUT,
             )
+    def test_result_sample_accepts_fault_metadata(self) -> None:
+        sample = ResultSample(
+            request_id="request-1",
+            scheduled_ns=0,
+            worker_start_ns=1,
+            pool_acquire_start_ns=2,
+            pool_acquire_end_ns=3,
+            write_start_ns=4,
+            write_end_ns=5,
+            first_byte_ns=6,
+            completion_ns=10,
+            status_code=200,
+            outcome=Outcome.SUCCESS,
+            error_category=None,
+            bytes_sent=10,
+            bytes_received=20,
+            fault_applied=True,
+            fault_mode="connection_churn",
+        )
+        self.assertTrue(sample.fault_applied)
+        self.assertEqual(sample.fault_mode, "connection_churn")
+
+    def test_fault_policy_validates_probability(self) -> None:
+        with self.assertRaises(Exception):
+            FaultPolicy(mode=FaultMode.NONE, probability=2.0)
+
+    def test_test_plan_accepts_fault_policy(self) -> None:
+        plan = TestPlan(
+            origin=Origin("http", "example.test", 80),
+            request=HttpRequest("GET", "/"),
+            request_count=1,
+            fault_policy=FaultPolicy(
+                mode=FaultMode.CONNECTION_CHURN,
+                seed=42,
+            ),
+        )
+        self.assertIsNotNone(plan.fault_policy)
+        self.assertEqual(plan.fault_policy.mode, FaultMode.CONNECTION_CHURN)
+
+
 if __name__ == "__main__":
     unittest.main()

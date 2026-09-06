@@ -86,3 +86,22 @@ class ReportingTests(unittest.TestCase):
         success_metrics.add(sample("request-1", outcome=Outcome.SUCCESS, status_code=200))
         success_report = Report.from_plan(self.plan, success_metrics.snapshot())
         self.assertEqual(exit_code_for(success_report), ExitCode.SUCCESS)
+
+
+    def test_json_report_includes_fault_counts(self) -> None:
+        from http_load_tester.domain.models import FaultMode, FaultPolicy
+        from dataclasses import replace as dc_replace
+        plan_with_fault = dc_replace(
+            self.plan,
+            fault_policy=FaultPolicy(mode=FaultMode.CONNECTION_CHURN, seed=1),
+        )
+        metrics = MetricsCollector()
+        metrics.add(sample("request-1", outcome=Outcome.SUCCESS, status_code=200))
+        report = Report.from_plan(plan_with_fault, metrics.snapshot(run_duration_ns=1_000_000_000))
+        payload = report.to_dict()
+        self.assertIn("fault_applied_count", payload["results"])
+        self.assertIn("fault_mode_counts", payload["results"])
+        self.assertEqual(
+            payload["configuration"]["fault_mode"],
+            "connection_churn",
+        )

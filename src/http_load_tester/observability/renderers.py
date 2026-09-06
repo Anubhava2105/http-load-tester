@@ -63,6 +63,10 @@ class TerminalRenderer:
             lines.append(f"Duration:     {configuration['duration_seconds']}s")
         if configuration["target_rate"] is not None:
             lines.append(f"Target rate:  {configuration['target_rate']} req/s")
+        if configuration.get("fault_mode") and configuration["fault_mode"] != "none":
+            lines.append(f"Fault mode:   {configuration['fault_mode']}")
+            if configuration.get("fault_probability") is not None:
+                lines.append(f"Fault prob:   {configuration['fault_probability']}")
         lines.extend(
             [
                 "",
@@ -136,6 +140,11 @@ class TerminalRenderer:
                 include={ErrorCategory.POOL_ACQUIRE_TIMEOUT},
             )
         )
+        if snapshot.fault_applied_count:
+            lines.extend(["", f"Faults applied: {snapshot.fault_applied_count}"])
+            if snapshot.fault_mode_counts:
+                for mode, count in sorted(snapshot.fault_mode_counts.items()):
+                    lines.append(f"  {mode:<22} {count}")
         return "\n".join(lines) + "\n"
 
 

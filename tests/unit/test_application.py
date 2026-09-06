@@ -82,6 +82,36 @@ class ConfigTests(unittest.TestCase):
             load_plan(["http://example.test/", "--workers", "1"])
 
 
+    def test_load_plan_builds_fault_policy_from_cli_args(self) -> None:
+        plan = load_plan(
+            [
+                "http://example.test/",
+                "--count",
+                "5",
+                "--fault-mode",
+                "connection_churn",
+                "--fault-probability",
+                "0.5",
+                "--fault-seed",
+                "42",
+            ]
+        )
+        self.assertIsNotNone(plan.fault_policy)
+        self.assertEqual(plan.fault_policy.mode.value, "connection_churn")
+        self.assertEqual(plan.fault_policy.probability, 0.5)
+        self.assertEqual(plan.fault_policy.seed, 42)
+
+    def test_load_plan_omits_fault_policy_for_none_mode(self) -> None:
+        plan = load_plan(
+            [
+                "http://example.test/",
+                "--count",
+                "1",
+            ]
+        )
+        self.assertIsNone(plan.fault_policy)
+
+
 class RunnerTests(unittest.TestCase):
     def test_runner_wires_samples_and_renders_json(self) -> None:
         plan = load_plan(

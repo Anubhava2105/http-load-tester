@@ -7,7 +7,7 @@ import math
 from collections.abc import Sequence
 
 from ..domain.errors import ConfigurationError
-from ..domain.models import HttpRequest, LoadModel, ReportFormat, TestPlan, TimeoutConfig
+from ..domain.models import FaultMode, FaultPolicy, HttpRequest, LoadModel, ReportFormat, TestPlan, TimeoutConfig
 from ..http.url import parse_target
 
 
@@ -111,6 +111,42 @@ def create_parser() -> argparse.ArgumentParser:
         default=ReportFormat.TERMINAL.value,
         dest="report_format",
     )
+    fault_group = parser.add_argument_group("fault injection")
+    fault_group.add_argument(
+        "--fault-mode",
+        choices=tuple(mode.value for mode in FaultMode),
+        default=FaultMode.NONE.value,
+        dest="fault_mode",
+        help="client-side fault-injection mode (default: none)",
+    )
+    fault_group.add_argument(
+        "--fault-probability",
+        type=_non_negative_float,
+        default=1.0,
+        dest="fault_probability",
+        help="probability of applying the fault per attempt (0.0-1.0)",
+    )
+    fault_group.add_argument(
+        "--fault-delay",
+        type=_non_negative_float,
+        default=0.1,
+        dest="fault_delay",
+        help="delay in seconds for slow-body or short-timeout modes",
+    )
+    fault_group.add_argument(
+        "--fault-body-bytes",
+        type=_positive_int,
+        default=None,
+        dest="fault_body_bytes",
+        help="body size in bytes for randomized-body mode",
+    )
+    fault_group.add_argument(
+        "--fault-seed",
+        type=int,
+        default=0,
+        dest="fault_seed",
+        help="random seed for deterministic fault decisions",
+    )
     return parser
 
 
@@ -134,6 +170,16 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
         request_seconds=args.request_timeout,
         pool_acquire_seconds=args.pool_timeout,
     )
+    fault_mode = FaultMode(args.fault_mode)
+    fault_policy = None
+    if fault_mode is not FaultMode.NONE:
+        fault_policy = FaultPolicy(
+            mode=fault_mode,
+            probability=args.fault_probability,
+            delay_seconds=args.fault_delay,
+            randomized_body_bytes=args.fault_body_bytes,
+            seed=args.fault_seed,
+        )
     return TestPlan(
         origin=parsed.origin,
         target_rate=args.target_rate,
@@ -146,6 +192,7 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
         load_model=LoadModel(args.load_model),
         timeouts=timeouts,
         report_format=ReportFormat(args.report_format),
+        fault_policy=fault_policy,
     )
 
 

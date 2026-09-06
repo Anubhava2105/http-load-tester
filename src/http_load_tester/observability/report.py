@@ -84,6 +84,8 @@ class Report:
                 "timeouts": _dataclass_mapping(plan.timeouts),
                 "limits": _dataclass_mapping(plan.limits),
                 "random_seed": plan.random_seed,
+                "fault_mode": plan.fault_policy.mode.value if plan.fault_policy else None,
+                "fault_probability": plan.fault_policy.probability if plan.fault_policy else None,
             },
             metrics=metrics,
         )
@@ -124,6 +126,8 @@ class Report:
                 "pool_wait_percentiles_ns": _latency_mapping(
                     snapshot.pool_wait_percentiles_ns
                 ),
+                "fault_applied_count": snapshot.fault_applied_count,
+                "fault_mode_counts": dict(snapshot.fault_mode_counts),
             },
         }
 

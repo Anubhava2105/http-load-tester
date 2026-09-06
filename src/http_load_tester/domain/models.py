@@ -240,6 +240,59 @@ class SafetyLimits:
             object.__setattr__(self, field_name, value)
 
 
+class FaultMode(StrEnum):
+    NONE = "none"
+    RAMP_UP = "ramp_up"
+    TRAFFIC_SPIKE = "traffic_spike"
+    CONNECTION_CHURN = "connection_churn"
+    SLOW_REQUEST_BODY = "slow_request_body"
+    ABORT_AFTER_HEADERS = "abort_after_headers"
+    ABORT_DURING_RESPONSE = "abort_during_response"
+    SHORT_READ_TIMEOUT = "short_read_timeout"
+    RANDOMIZED_BODY = "randomized_body"
+
+
+@dataclass(frozen=True, slots=True)
+class FaultPolicy:
+    mode: FaultMode = FaultMode.NONE
+    probability: float = 1.0
+    delay_seconds: float = 0.1
+    randomized_body_bytes: int | None = None
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mode, FaultMode):
+            raise ConfigurationError("fault mode must be a FaultMode")
+        if isinstance(self.probability, bool) or not isinstance(self.probability, (int, float)):
+            raise ConfigurationError("fault probability must be numeric")
+        if not 0 <= float(self.probability) <= 1:
+            raise ConfigurationError("fault probability must be between 0 and 1")
+        if isinstance(self.delay_seconds, bool) or not isinstance(
+            self.delay_seconds, (int, float)
+        ) or self.delay_seconds < 0:
+            raise ConfigurationError("fault delay_seconds must be non-negative")
+        if self.randomized_body_bytes is not None and (
+            isinstance(self.randomized_body_bytes, bool)
+            or not isinstance(self.randomized_body_bytes, int)
+            or self.randomized_body_bytes < 0
+        ):
+            raise ConfigurationError("fault randomized_body_bytes must be non-negative or None")
+        if isinstance(self.seed, bool) or not isinstance(self.seed, int):
+            raise ConfigurationError("fault seed must be an integer")
+
+
+@dataclass(frozen=True, slots=True)
+class FaultDecision:
+    request: "HttpRequest"
+    delay_seconds: float = 0.0
+    force_connection_close: bool = False
+    abort_after_headers: bool = False
+    abort_during_response: bool = False
+    read_timeout_seconds: float | None = None
+    applied: bool = False
+    fault_mode: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class TestPlan:
     origin: Origin
@@ -255,6 +308,7 @@ class TestPlan:
     limits: SafetyLimits = field(default_factory=SafetyLimits)
     report_format: ReportFormat = ReportFormat.TERMINAL
     random_seed: int = 0
+    fault_policy: FaultPolicy | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.origin, Origin):
@@ -313,6 +367,9 @@ class TestPlan:
         object.__setattr__(self, "max_connections", max_connections)
         if target_rate is not None:
             object.__setattr__(self, "target_rate", target_rate)
+        if self.fault_policy is not None:
+            if not isinstance(self.fault_policy, FaultPolicy):
+                raise ConfigurationError("fault_policy must be a FaultPolicy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -332,6 +389,8 @@ class ResultSample:
     bytes_sent: int = 0
     bytes_received: int = 0
     connection_reused: bool = False
+    fault_applied: bool = False
+    fault_mode: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.request_id, "request_id")
@@ -396,6 +455,10 @@ class ResultSample:
             raise ConfigurationError("connection_reused must be a boolean")
         if self.pool_acquire_end_ns is None and self.connection_reused:
             raise ConfigurationError("an attempt without pool acquisition cannot reuse a connection")
+        if not isinstance(self.fault_applied, bool):
+            raise ConfigurationError("fault_applied must be a boolean")
+        if self.fault_mode is not None and not isinstance(self.fault_mode, str):
+            raise ConfigurationError("fault_mode must be a string or None")
 
     @property
     def request_latency_ns(self) -> int | None:

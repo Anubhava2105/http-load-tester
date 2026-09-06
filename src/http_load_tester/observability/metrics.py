@@ -57,6 +57,8 @@ class MetricsSnapshot:
     bytes_sent: int
     bytes_received: int
     connection_reuse_ratio: float | None
+    fault_applied_count: int = 0
+    fault_mode_counts: Mapping[str, int] = MappingProxyType({})
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "status_counts", MappingProxyType(dict(self.status_counts)))
@@ -73,6 +75,11 @@ class MetricsSnapshot:
                 field_name,
                 MappingProxyType(dict(getattr(self, field_name))),
             )
+        object.__setattr__(
+            self,
+            "fault_mode_counts",
+            MappingProxyType(dict(self.fault_mode_counts)),
+        )
 
     @property
     def error_rate(self) -> float:
@@ -168,6 +175,14 @@ class MetricsCollector:
             if acquired
             else None
         )
+        fault_applied_count = sum(
+            1 for sample in samples if sample.fault_applied
+        )
+        fault_mode_counter: Counter[str] = Counter(
+            sample.fault_mode
+            for sample in samples
+            if sample.fault_mode is not None
+        )
         return MetricsSnapshot(
             total_attempts=len(samples),
             success_count=outcome_counts[Outcome.SUCCESS],
@@ -192,4 +207,6 @@ class MetricsCollector:
             bytes_sent=sum(sample.bytes_sent for sample in samples),
             bytes_received=sum(sample.bytes_received for sample in samples),
             connection_reuse_ratio=reuse_ratio,
+            fault_applied_count=fault_applied_count,
+            fault_mode_counts=fault_mode_counter,
         )

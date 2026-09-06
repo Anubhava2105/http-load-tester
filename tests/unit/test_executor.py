@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from http_load_tester.domain.models import HttpRequest, LoadModel, Origin, TestPlan, TimeoutConfig
+from http_load_tester.domain.models import FaultMode, FaultPolicy, HttpRequest, LoadModel, Origin, TestPlan, TimeoutConfig
 from http_load_tester.http.session import SessionTiming
 from http_load_tester.load.executor import WorkExecutor
 from http_load_tester.load.scheduler import OpenLoopScheduler
@@ -15,7 +15,7 @@ class FakeSession:
         self.executions = 0
 
     def execute(self, request: HttpRequest, deadline_ns: int | None = None):
-        from http_load_tester.domain.models import HttpResponseSummary
+        from http_load_tester.domain.models import FaultMode, FaultPolicy, HttpResponseSummary
 
         self.executions += 1
         now = time.monotonic_ns()
@@ -96,3 +96,43 @@ class ExecutorTests(unittest.TestCase):
         samples = executor.run()
 
         self.assertEqual(len(samples), 4)
+
+
+    def test_executor_applies_connection_churn_fault(self) -> None:
+        origin = Origin("http", "example.test", 80)
+        plan = TestPlan(
+            origin=origin,
+            request=HttpRequest("GET", "/"),
+            request_count=2,
+            workers=1,
+            max_connections=1,
+            fault_policy=FaultPolicy(
+                mode=FaultMode.CONNECTION_CHURN,
+                seed=42,
+            ),
+        )
+        factory = FakeFactory()
+        pool = ConnectionPool(origin, 1, TimeoutConfig(), session_factory=factory)
+        executor = WorkExecutor(plan, pool)
+        samples = executor.run()
+        applied = [s for s in samples if s.fault_applied]
+        self.assertTrue(len(applied) > 0)
+        for s in applied:
+            self.assertEqual(s.fault_mode, "connection_churn")
+
+    def test_executor_preserves_default_without_fault_policy(self) -> None:
+        origin = Origin("http", "example.test", 80)
+        plan = TestPlan(
+            origin=origin,
+            request=HttpRequest("GET", "/"),
+            request_count=2,
+            workers=1,
+            max_connections=1,
+        )
+        factory = FakeFactory()
+        pool = ConnectionPool(origin, 1, TimeoutConfig(), session_factory=factory)
+        executor = WorkExecutor(plan, pool)
+        samples = executor.run()
+        for s in samples:
+            self.assertFalse(s.fault_applied)
+            self.assertIsNone(s.fault_mode)
