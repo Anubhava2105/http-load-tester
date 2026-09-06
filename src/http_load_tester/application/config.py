@@ -111,6 +111,13 @@ def create_parser() -> argparse.ArgumentParser:
         default=ReportFormat.TERMINAL.value,
         dest="report_format",
     )
+    parser.add_argument(
+        "--max-runtime",
+        type=_positive_float,
+        default=None,
+        dest="max_runtime",
+        help="overall runtime ceiling in seconds",
+    )
     fault_group = parser.add_argument_group("fault injection")
     fault_group.add_argument(
         "--fault-mode",
@@ -180,6 +187,11 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
             randomized_body_bytes=args.fault_body_bytes,
             seed=args.fault_seed,
         )
+    from ..domain.models import SafetyLimits
+    limits_kwargs = {}
+    if args.max_runtime is not None:
+        limits_kwargs["max_total_runtime_seconds"] = args.max_runtime
+    limits = SafetyLimits(**limits_kwargs)
     return TestPlan(
         origin=parsed.origin,
         target_rate=args.target_rate,
@@ -191,6 +203,7 @@ def plan_from_args(args: argparse.Namespace) -> TestPlan:
         max_connections=args.max_connections,
         load_model=LoadModel(args.load_model),
         timeouts=timeouts,
+        limits=limits,
         report_format=ReportFormat(args.report_format),
         fault_policy=fault_policy,
     )

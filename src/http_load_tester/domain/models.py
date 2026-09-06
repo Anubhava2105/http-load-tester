@@ -336,6 +336,11 @@ class TestPlan:
                 raise ConfigurationError("duration_seconds exceeds max_duration_seconds")
             object.__setattr__(self, "duration_seconds", duration)
         warmup = _require_non_negative_real(self.warmup_seconds, "warmup_seconds")
+        total_planned = warmup + (self.duration_seconds or 0)
+        if total_planned > self.limits.max_total_runtime_seconds:
+            raise ConfigurationError(
+                "warmup + duration exceeds max_total_runtime_seconds"
+            )
         workers = _require_positive_int(self.workers, "workers")
         max_connections = _require_positive_int(self.max_connections, "max_connections")
         if workers > self.limits.max_workers:

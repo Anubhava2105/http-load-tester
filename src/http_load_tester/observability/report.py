@@ -19,6 +19,7 @@ class ExitCode(IntEnum):
     COMPLETED_WITH_ERRORS = 1
     EXECUTION_FAILURE = 2
     INVALID_CONFIGURATION = 3
+    INTERRUPTED = 130
 
 
 def _enum_value(value: object) -> object:

@@ -146,3 +146,40 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], "1.0")
         self.assertEqual(payload["results"]["responses"], 1)
         self.assertEqual(error.getvalue(), "")
+
+    def test_max_runtime_flag_is_accepted(self) -> None:
+        plan = load_plan(
+            [
+                "http://example.test/",
+                "--count",
+                "1",
+                "--max-runtime",
+                "60",
+            ]
+        )
+        self.assertEqual(plan.limits.max_total_runtime_seconds, 60.0)
+
+    def test_max_runtime_flag_defaults_to_safety_limit(self) -> None:
+        plan = load_plan(
+            [
+                "http://example.test/",
+                "--count",
+                "1",
+            ]
+        )
+        self.assertEqual(plan.limits.max_total_runtime_seconds, 86_400.0)
+
+    def test_runner_rejects_overlimit_plan_before_execution(self) -> None:
+        from http_load_tester.domain.errors import ConfigurationError
+        with self.assertRaises(ConfigurationError):
+            load_plan(
+                [
+                    "http://example.test/",
+                    "--count",
+                    "1",
+                    "--max-runtime",
+                    "0.001",
+                    "--warmup",
+                    "10",
+                ]
+            )
