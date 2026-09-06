@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
 from types import MappingProxyType
 from typing import Iterable, Mapping
@@ -84,7 +84,7 @@ class MetricsSnapshot:
     bytes_received: int
     connection_reuse_ratio: float | None
     fault_applied_count: int = 0
-    fault_mode_counts: Mapping[str, int] = MappingProxyType({})
+    fault_mode_counts: Mapping[str, int] = field(default_factory=dict)
     metrics_mode: str = MetricsMode.EXACT.value
     approximate_percentiles: bool = False
     reservoir_size: int | None = None
