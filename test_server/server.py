@@ -26,9 +26,12 @@ class ScenarioServer:
         config: ScenarioConfig | None = None,
         *,
         host: str = "127.0.0.1",
+        port: int = 0,
     ) -> None:
+        if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535:
+            raise ValueError("port must be an integer between 0 and 65535")
         self.config = config or ScenarioConfig()
-        self._server = _ThreadingServer((host, 0), _ScenarioHandler, self.config)
+        self._server = _ThreadingServer((host, port), _ScenarioHandler, self.config)
         self._thread: threading.Thread | None = None
 
     @property

@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile
+        run: python -m compileall -q src tests test_server benchmarks
+      - name: Tests
+        run: PYTHONPATH=src:. python -m unittest discover -s tests -v
+      - name: Clean install
+        run: pip install .
+      - name: Console script and module entry points
+        run: |
+          http-load-tester --help
+          python -m http_load_tester --help
+          python -m test_server --help
